@@ -62,9 +62,8 @@ class Taglist(object):
 
 def selectalgo(search_name, _PATH):
     jieba.enable_parallel(2)
-    wikiresult = google.search(search_name+" wikipedia", goal_num=1)[0]
-    print(wikiresult.name)
-    site = requests.get(wikiresult.link)
+    link = "https://zh.wikipedia.org/wiki/"+search_name
+    site = requests.get(link)
     text = BeautifulSoup(site.content, "html.parser")
     text = text.find(id="mw-content-text").extract()
     decolist = ["hatnote", "infobox", "navbox", "vertical-navbox", "toc",
@@ -75,6 +74,9 @@ def selectalgo(search_name, _PATH):
             s.decompose()
     for s in text.find_all("sup"):
         text.sup.decompose()
+    if(text.find(id="noarticletext")):
+        print("noarticletext")
+        return "noarticletext"
     selectpos = ["l", "n", "nr", "v", "vn", "eng"]  # select pos
     tags = jieba.analyse.extract_tags(OpenCC('tw2sp').convert(text.getText()), topK=20,
                                       withWeight=True, allowPOS=(selectpos))
@@ -94,14 +96,13 @@ def selectalgo(search_name, _PATH):
     search_results = google.search(search_name)
     banword = ["ppt", "slide", "pdf", "news", "tv", "facebook.com", "平台", "平臺",
                "books.com", "course", "課程", "偽基", "youtube.com", "cw.com",
-               "104.com", "udn.com", "KKTIX", "pcschool.com"]
-    banword = []
+               "www.104.com", "udn.com", "KKTIX", "pcschool.com"]
+    # banword = []
     selectsite = []
     opcc = OpenCC('tw2sp')
     for i, res in enumerate(search_results):
         print(res.name, "{}/{}".format(i+1, len(search_results)))
-#        print(res.link)
-#        print(res.description)
+        print(res.link)
         banflag = False
         for bw in banword:
             if bw in res.name or bw in res.link:
@@ -174,10 +175,11 @@ if __name__ == "__main__":
         os.mkdir(_sitepath)
     sitefile = open(_PATH+"sites/"+search_name+".txt", "w")
     sitelist = selectalgo(search_name, _PATH)
-    for site in sitelist:
-        site.display()
-        sitefile.write(site.name+"\n")
-        sitefile.write(site.link+"\n")
-        sitefile.write(str(site.score)+"\n")
-        sitefile.write("\n")
-    sitefile.close()
+    if sitelist != "noarticletext":
+        for site in sitelist:
+            site.display()
+            sitefile.write(site.name+"\n")
+            sitefile.write(site.link+"\n")
+            sitefile.write(str(site.score)+"\n")
+            sitefile.write("\n")
+        sitefile.close()
