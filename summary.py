@@ -57,22 +57,21 @@ def dircheck(path, tstamp):
 
 def getwebdata(search_name):
     t0 = time.time()
-    sitelist = selectionalgo.selectalgo(search_name, _PATH)
-    if sitelist == "noarticletext":
-        return False
-    print("search time", time.time()-t0)
-    for file in os.listdir(savedir):
-        os.rename(savedir+file, tempdir+file)
-    for file in os.listdir(htmldir):
-        os.rename(htmldir+file, tempdir+file)
-    for site in sitelist:
-        site.display()
-        with open(htmldir+site.webname+".html", "w") as fp:
-            fp.writelines(site.soup.prettify())
-        sitetext = savetext.savetext(site.soup)
-        with open(savedir+"{}_{}.txt".format(site.webname, site.score), "w") as outfp:
-            outfp.writelines(sitetext)
-    return True
+    title, sitelist = selectionalgo.selectalgo(search_name, _PATH)
+    if title != "noarticletext":
+        print("search time", time.time()-t0)
+        for file in os.listdir(savedir):
+            os.rename(savedir+file, tempdir+file)
+        for file in os.listdir(htmldir):
+            os.rename(htmldir+file, tempdir+file)
+        for site in sitelist:
+            site.display()
+            with open(htmldir+site.webname+".html", "w") as fp:
+                fp.writelines(site.soup.prettify())
+            sitetext = savetext.savetext(site.soup)
+            with open(savedir+"{}_{}.txt".format(site.webname, site.score), "w") as outfp:
+                outfp.writelines(sitetext)
+    return title
 
 
 def is_alphabet(uchar):
@@ -210,9 +209,9 @@ def drawW2Vtrainningresult(model, w2vtotaltraintime, w2vdir, timestamp):
 #    plt.show()
 
 
-def clustering(search_name, summarytype, trainning=False, timestamp=""):
+def clustering(save_name, summarytype, trainning=False, timestamp=""):
     #    ----------word2vec train---------
-    w2vdir = _PATH+"word2vec/{}/".format(search_name)
+    w2vdir = _PATH+"word2vec/{}/".format(save_name)
     if not os.path.isdir(w2vdir):
         os.mkdir(w2vdir)
         trainning = True
@@ -320,7 +319,7 @@ def clustering(search_name, summarytype, trainning=False, timestamp=""):
                 for s in sorted(cslist, key=lambda s: (s.doc, s.para, s.lineindex)):
                     csfp.write(opcc.convert(s.sentence)+"\n")
             if gl == clustersize:
-                with open(_PATH+"summary/"+search_name+"_summary"+summarytype+timestamp+".txt", "w") as csfp:
+                with open(_PATH+"summary/"+save_name+"_summary"+summarytype+timestamp+".txt", "w") as csfp:
                     for s in sorted(cslist, key=lambda s: (s.doc, s.para, s.lineindex)):
                         csfp.write(opcc.convert(s.sentence)+"\n")
                 break
@@ -332,7 +331,7 @@ def clustering(search_name, summarytype, trainning=False, timestamp=""):
     print("clustering completed", time.time()-t00)
 
 
-def getsummary(search_name="人工智慧", isgetwebdata=True, mixver=False, trrate=0.7, istrainning=True):
+def getsummary(search_name="人工智慧", mixver=False, trrate=0.7, istrainning=True):
     global savedir, htmldir, tempdir, sentences, indexsentences
     tstamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
     savedir = dircheck(_PATH+"savetext/{}/".format(search_name), tstamp="")
@@ -350,16 +349,16 @@ def getsummary(search_name="人工智慧", isgetwebdata=True, mixver=False, trra
     else:
         print("no trainning")
     # ----------getwebdata-----------
-    if isgetwebdata:
-        wikiresult = getwebdata(search_name)
-        if not wikiresult:
-            return None
-    # ----cut sentence and word------
-    sentences, indexsentences = loadtext(
-        savedir, mixedversion=mixver, textrankrate=trrate)
-    # -------------clustering--------
-    clustering(search_name=search_name, summarytype=stype,
-               trainning=istrainning, timestamp=tstamp)
+    wikiresult = getwebdata(search_name)
+    if wikiresult != "noarticletext":
+        # ----cut sentence and word------
+        sentences, indexsentences = loadtext(
+            savedir, mixedversion=mixver, textrankrate=trrate)
+        # -------------clustering--------
+        stype, tstamp = "", ""
+        clustering(save_name=wikiresult, summarytype=stype,
+                   trainning=istrainning, timestamp=tstamp)
+    return wikiresult
 
 
 if __name__ == "__main__":
@@ -376,5 +375,5 @@ if __name__ == "__main__":
     traininput = input("istrainning?(Y/n)")
     if str.lower(traininput) == "n":
         istrainning = False
-    getsummary(search_name=search_name, isgetwebdata=True,
-               mixver=mixver, trrate=trrate, istrainning=istrainning)
+    getsummary(search_name=search_name, mixver=mixver,
+               trrate=trrate, istrainning=istrainning)

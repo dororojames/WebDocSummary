@@ -85,8 +85,8 @@ if __name__ == "__main__":
     while True:
         if not qq.empty():
             sname = qq.pop()
-            summary.getsummary(search_name=sname)
-            qq.push(sname, time.time())
+            filename = summary.getsummary(search_name=sname)
+            qq.push(sname, time.time(),file=filename)
         else:
             time.sleep(10)
             qq = QueryQueue()
