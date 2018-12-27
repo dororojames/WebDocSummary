@@ -1,11 +1,16 @@
 beautifulsoup4==4.6.3
 gensim==3.4.0
+get==2018.11.19
 Google-Search-API==1.1.14
 jieba==0.39
 lxml==4.2.5
 matplotlib==2.2.3
 opencc-python-reimplemented==0.1.4
+query-string==2018.11.20
 readability-lxml==0.7
-requests==2.19.1
+request==2018.11.20
+requests==2.21.0
 scikit-image==0.14.0
 scikit-learn==0.19.2
+textrank4zh==0.3
+urllib3==1.24.1

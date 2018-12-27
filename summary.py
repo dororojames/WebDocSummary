@@ -62,9 +62,9 @@ def getwebdata(search_name):
         return False
     print("search time", time.time()-t0)
     for file in os.listdir(savedir):
-        os.rename(savedir+file,tempdir+file)
+        os.rename(savedir+file, tempdir+file)
     for file in os.listdir(htmldir):
-        os.rename(htmldir+file,tempdir+file)
+        os.rename(htmldir+file, tempdir+file)
     for site in sitelist:
         site.display()
         with open(htmldir+site.webname+".html", "w") as fp:
@@ -376,4 +376,5 @@ if __name__ == "__main__":
     traininput = input("istrainning?(Y/n)")
     if str.lower(traininput) == "n":
         istrainning = False
-    getsummary(search_name=search_name, isgetwebdata=True, mixver=mixver, trrate=trrate, istrainning=istrainning)
+    getsummary(search_name=search_name, isgetwebdata=True,
+               mixver=mixver, trrate=trrate, istrainning=istrainning)

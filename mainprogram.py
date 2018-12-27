@@ -76,7 +76,7 @@ def query(sql=""):
 
 if __name__ == "__main__":
     # 打开数据库连接
-    db = pymysql.connect("localhost", "testuser", "test123", "TESTDB")
+    db = pymysql.connect("192.168.43.87", "root", "root", "summary")
     # 使用cursor()方法获取操作游标
     cursor = db.cursor()
 
