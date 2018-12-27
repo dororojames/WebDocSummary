@@ -180,7 +180,7 @@ if __name__ == "__main__":
     _sitepath = _PATH+"sites/"
     if not os.path.isdir(_sitepath):
         os.mkdir(_sitepath)
-    sitefile = open(_PATH+"sites/"+search_name+".txt", "w")
+    sitefile = open(_PATH+"sites/"+search_name+".txt", "w", encoding="uft-8")
     title, sitelist = selectalgo(search_name, _PATH)
     if title != "noarticletext":
         for site in sitelist:

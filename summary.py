@@ -11,12 +11,9 @@ import copy
 import os
 import time
 
-import jieba
-import jieba.analyse
 import jieba.posseg as jbps
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 from gensim.models import Word2Vec
 from opencc import OpenCC
 from sklearn.decomposition import PCA
@@ -55,21 +52,23 @@ def dircheck(path, tstamp):
     return path
 
 
-def getwebdata(search_name):
+def getwebdata(search_name, timestamp=""):
     t0 = time.time()
     title, sitelist = selectionalgo.selectalgo(search_name, _PATH)
     if title != "noarticletext":
         print("search time", time.time()-t0)
         for file in os.listdir(savedir):
-            os.rename(savedir+file, tempdir+file)
+            if file[0] != ".":
+                os.rename(savedir+file, tempdir+file[0:-4]+timestamp+".txt")
         for file in os.listdir(htmldir):
-            os.rename(htmldir+file, tempdir+file)
+            if file[0] != ".":
+                os.rename(htmldir+file, tempdir+file[0:-4]+timestamp+".txt")
         for site in sitelist:
             site.display()
-            with open(htmldir+site.webname+".html", "w") as fp:
+            with open(htmldir+site.webname+".html", "w", encoding="utf-8") as fp:
                 fp.writelines(site.soup.prettify())
             sitetext = savetext.savetext(site.soup)
-            with open(savedir+"{}_{}.txt".format(site.webname, site.score), "w") as outfp:
+            with open(savedir+"{}_{}.txt".format(site.webname, site.score), "w", encoding="utf-8") as outfp:
                 outfp.writelines(sitetext)
     return title
 
@@ -90,8 +89,8 @@ def loadtext(textdir, mixedversion=True, textrankrate=0.5):
     tr4s = TextRank4Sentence()
     for file in sorted(filelist, key=lambda file: float(file.split("_")[1][:-4]), reverse=True):
         print(file)
-        with open(savedir+file) as txtfile:
-            eofp = open(tempdir+file, "w")
+        with open(savedir+file, "r", encoding="utf-8") as txtfile:
+            eofp = open(tempdir+file, "w", encoding="utf-8")
             contents = txtfile.read()
             if mixedversion:
                 tr4s.analyze(text=contents, lower=True, source='all_filters')
@@ -139,7 +138,7 @@ def loadtext(textdir, mixedversion=True, textrankrate=0.5):
              "；", "「", "%"]
     t0 = time.time()
     dic = {}
-    with open(_PATH+"text segmentation/1998.csv", "r", encoding="utf-8") as dictxt:
+    with open(_PATH+"source/1998.csv", "r", encoding="utf-8") as dictxt:
         lines = dictxt.read().splitlines()
         for line in lines:
             line = line.split(",")
@@ -188,7 +187,7 @@ def drawW2Vtrainningresult(model, w2vtotaltraintime, w2vdir, timestamp):
     words = list(model.wv.vocab)
     vector2D = PCA(n_components=2).fit_transform(model.wv.vectors)
     zhfont = matplotlib.font_manager.FontProperties(
-        fname='/System/Library/Fonts/PingFang.ttc')
+        fname=_PATH+'source/PingFang.ttc')
     fig = plt.figure(figsize=(20, 20))
     ax = fig.add_subplot(111)
     xmax, xmin, ymax, ymin = 0, 0, 0, 0
@@ -288,7 +287,7 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
             print(gl)
             cslist = []
             for i, g in enumerate(clusters):
-                with open(groupdir+"{}g{:02d}.txt".format(gl, i), "w") as gfp:
+                with open(groupdir+"{}g{:02d}.txt".format(gl, i), "w", encoding="utf-8") as gfp:
                     for sid in g:
                         gfp.write(indexsentences[sid].sentence+"\n")
                     md, csid = 99999, 0
@@ -315,11 +314,11 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
                 if cs.score < 0.0075:
                     print(cs)
                     cslist.remove(cs)
-            with open(csdir+"{}sc.txt".format(gl), "w") as csfp:
+            with open(csdir+"{}sc.txt".format(gl), "w", encoding="utf-8") as csfp:
                 for s in sorted(cslist, key=lambda s: (s.doc, s.para, s.lineindex)):
                     csfp.write(opcc.convert(s.sentence)+"\n")
             if gl == clustersize:
-                with open(_PATH+"summary/"+save_name+"_summary"+summarytype+timestamp+".txt", "w") as csfp:
+                with open(_PATH+"summary/"+save_name+"_summary"+summarytype+timestamp+".txt", "w", encoding="utf-8") as csfp:
                     for s in sorted(cslist, key=lambda s: (s.doc, s.para, s.lineindex)):
                         csfp.write(opcc.convert(s.sentence)+"\n")
                 break
@@ -331,7 +330,7 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
     print("clustering completed", time.time()-t00)
 
 
-def getsummary(search_name="人工智慧", mixver=False, trrate=0.7, istrainning=True):
+def getsummary(search_name="人工智慧", getweb=True, mixver=False, trrate=0.7, istrainning=True):
     global savedir, htmldir, tempdir, sentences, indexsentences
     tstamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
     savedir = dircheck(_PATH+"savetext/{}/".format(search_name), tstamp="")
@@ -349,7 +348,10 @@ def getsummary(search_name="人工智慧", mixver=False, trrate=0.7, istrainning
     else:
         print("no trainning")
     # ----------getwebdata-----------
-    wikiresult = getwebdata(search_name)
+    if getweb:
+        wikiresult = getwebdata(search_name, timestamp=tstamp)
+    else:
+        wikiresult = ""
     if wikiresult != "noarticletext":
         # ----cut sentence and word------
         sentences, indexsentences = loadtext(
@@ -362,18 +364,22 @@ def getsummary(search_name="人工智慧", mixver=False, trrate=0.7, istrainning
 
 
 if __name__ == "__main__":
-    search_name = "人工智慧"
-    #    search_name = input("輸入搜尋項目名稱:")
+    search_name = input("輸入搜尋項目名稱(人工智慧):")
+    if search_name == "":
+        search_name = "人工智慧"
 
 #    jieba.set_dictionary(_PATH+"text segmentation/dict.txt.big")
-    mixver, trrate, istrainning = False, 0.7, True
+    mixver, trrate, istrainning, getweb = False, 0.7, False, False
+    webinput = input("getwebdata?(y/N)")
+    if str.lower(webinput) == "y":
+        getweb = True
     mixverinput = input("ismix?(y/N)")
     if str.lower(mixverinput) == "y":
         mixver = True
         trrateinput = input("Please input trrate(0.3~0.7)>>>")
         trrate = min(max(float(trrateinput), 0.3), 0.7)
-    traininput = input("istrainning?(Y/n)")
-    if str.lower(traininput) == "n":
-        istrainning = False
-    getsummary(search_name=search_name, mixver=mixver,
+    traininput = input("istrainning?(y/N)")
+    if str.lower(traininput) == "y":
+        istrainning = True
+    getsummary(search_name=search_name, getweb=getweb, mixver=mixver,
                trrate=trrate, istrainning=istrainning)
