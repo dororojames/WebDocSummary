@@ -61,10 +61,16 @@ class Taglist(object):
 
 
 def selectalgo(search_name, _PATH):
-    jieba.enable_parallel(2)
+    jenableparallel = True
+    try:
+        jieba.enable_parallel(2)
+    except:
+        jenableparallel = False
+        print("This env can't enable jieba parallel")
     link = "https://zh.wikipedia.org/wiki/"+search_name
     site = requests.get(link)
     text = BeautifulSoup(site.content, "html.parser")
+    wikiTitle = text.find(id="firstHeading").getText()
     text = text.find(id="mw-content-text").extract()
     decolist = ["hatnote", "infobox", "navbox", "vertical-navbox", "toc",
                 "mw-editsection", "reference", "plainlist", "plainlists",
@@ -76,7 +82,7 @@ def selectalgo(search_name, _PATH):
         text.sup.decompose()
     if(text.find(id="noarticletext")):
         print("noarticletext")
-        return "noarticletext"
+        return "noarticletext", None
     selectpos = ["l", "n", "nr", "v", "vn", "eng"]  # select pos
     tags = jieba.analyse.extract_tags(OpenCC('tw2sp').convert(text.getText()), topK=20,
                                       withWeight=True, allowPOS=(selectpos))
@@ -157,8 +163,9 @@ def selectalgo(search_name, _PATH):
                 # record.append(str(score))
                 # with open(_PATH+"score/{}_{:.2f}.txt".format(webname, score), "w") as file:
                 #     file.writelines(record)
-    jieba.enable_parallel()
-    return sorted(selectsite, key=lambda s: s.score, reverse=True)[:5]
+    if jenableparallel:
+        jieba.enable_parallel()
+    return wikiTitle, sorted(selectsite, key=lambda s: s.score, reverse=True)[:5]
 
 
 if __name__ == "__main__":
@@ -174,8 +181,8 @@ if __name__ == "__main__":
     if not os.path.isdir(_sitepath):
         os.mkdir(_sitepath)
     sitefile = open(_PATH+"sites/"+search_name+".txt", "w")
-    sitelist = selectalgo(search_name, _PATH)
-    if sitelist != "noarticletext":
+    title, sitelist = selectalgo(search_name, _PATH)
+    if title != "noarticletext":
         for site in sitelist:
             site.display()
             sitefile.write(site.name+"\n")
