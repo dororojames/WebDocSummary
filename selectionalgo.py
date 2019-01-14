@@ -7,6 +7,7 @@ Created on Sun May 13 14:53:50 2018
 @author: dororo
 """
 
+import gc
 import os
 
 import jieba
@@ -17,6 +18,20 @@ from bs4 import BeautifulSoup
 from google import google
 from opencc import OpenCC
 from readability import Document
+
+bantag = set(["編輯", "條目", "頁面", "連結"])  # ban wiki tag
+decolist = ["hatnote", "infobox", "navbox", "vertical-navbox", "toc",
+            "mw-editsection", "reference", "plainlist", "plainlists",
+            "references-column-width", "refbegin"]  # decompose key word
+selectpos = ["l", "n", "nr", "v", "vn", "eng"]  # select pos
+banword = ["ppt", "slide", "pdf", "news", "tv", "facebook.com", "平台", "平臺",
+           "books.com", "course", "課程", "偽基", "youtube.com", "cw.com",
+           "www.104.com", "udn.com", "KKTIX", "pcschool.com", "eslite.com",
+           "piconion.com", "math.scu", "asia-analytics.com", "pu.edu", "nkfust.edu",
+           "geog.ntu.edu", "yourgene.pixnet", "canon-asia.com", "raspberrypi.com",
+           "inside.com", "myweb.fcu", "iiiedu.org"]
+header = {
+    "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.13 (KHTML, like Gecko) Chrome/0.2.149.27 Safari/525.13"}
 
 
 class Selected(object):
@@ -72,47 +87,45 @@ def selectalgo(search_name, _PATH):
     text = BeautifulSoup(site.content, "html.parser")
     wikiTitle = text.find(id="firstHeading").getText()
     text = text.find(id="mw-content-text").extract()
-    decolist = ["hatnote", "infobox", "navbox", "vertical-navbox", "toc",
-                "mw-editsection", "reference", "plainlist", "plainlists",
-                "references-column-width", "refbegin"]  # decompose key word
     for deco in decolist:
         for s in text.find_all(class_=deco):
             s.decompose()
     for s in text.find_all("sup"):
         text.sup.decompose()
     if(text.find(id="noarticletext")):
-        print("noarticletext")
-        return "noarticletext", None
-    selectpos = ["l", "n", "nr", "v", "vn", "eng"]  # select pos
-    tags = jieba.analyse.extract_tags(OpenCC('tw2sp').convert(text.getText()), topK=20,
-                                      withWeight=True, allowPOS=(selectpos))
-    bantag = ["編輯", "條目"]  # ban wiki tag
+        # print("noarticletext")
+        return "noarticletext", None, []
+    text = OpenCC('tw2sp').convert(text.getText())
+    tags = jieba.analyse.extract_tags(
+        text, topK=20, withWeight=True, allowPOS=(selectpos))
     taglist = Taglist()
+    RelatedWords = []
     # tfidffile = open(_PATH+search_name+"textsegmentation.txt", "w")
+    opcc = OpenCC('s2twp')
+    for r in jieba.analyse.textrank(text, topK=10, withWeight=False, allowPOS=(["l", "n"])):
+        rr = opcc.convert(r)
+        if rr != search_name:
+            RelatedWords.append(rr)
+    print("RelatedWord:", RelatedWords)
     for tag, wei in tags:
-        if OpenCC('s2twp').convert(tag) in bantag or OpenCC('s2twp').convert(tag) in search_name:
+        if opcc.convert(tag) in bantag or opcc.convert(tag) in search_name:
             # tags.remove((tag, wei))
             continue
-        print(tag, wei)
+        # print(tag, wei)
         taglist.append(Tag(tag, wei))
         # tfidffile.write("{} {}\n".format(tag, wei))
     # tfidffile.close()
-    header = {
-        "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.13 (KHTML, like Gecko) Chrome/0.2.149.27 Safari/525.13"}
     search_results = google.search(search_name)
-    banword = ["ppt", "slide", "pdf", "news", "tv", "facebook.com", "平台", "平臺",
-               "books.com", "course", "課程", "偽基", "youtube.com", "cw.com",
-               "www.104.com", "udn.com", "KKTIX", "pcschool.com"]
     # banword = []
     selectsite = []
     opcc = OpenCC('tw2sp')
-    for i, res in enumerate(search_results):
-        print(res.name, "{}/{}".format(i+1, len(search_results)))
-        print(res.link)
+    for _, res in enumerate(search_results):
+        # print(res.name, "{}/{}".format(i+1, len(search_results)))
+        # print(res.link)
         banflag = False
         for bw in banword:
             if bw in res.name or bw in res.link:
-                print("<{}>".format(bw))
+                # print("<{}>".format(bw))
                 banflag = True
                 break
         if banflag:
@@ -127,7 +140,11 @@ def selectalgo(search_name, _PATH):
                 soup = text
             else:
                 doc = Document(response.text)
-                newhtml = doc.summary()
+                try:
+                    newhtml = doc.summary()
+                except:
+                    print("summary error")
+                    continue
                 converted = opcc.convert(newhtml)
                 soup = BeautifulSoup(converted, "html.parser")
 
@@ -156,7 +173,7 @@ def selectalgo(search_name, _PATH):
                         webname += c
                     else:
                         break
-                print(webname)
+                # print(webname)
                 selectsite.append(Selected(res.name, webname,
                                            res.link, score,
                                            res.description, soup))
@@ -165,7 +182,7 @@ def selectalgo(search_name, _PATH):
                 #     file.writelines(record)
     if jenableparallel:
         jieba.enable_parallel()
-    return wikiTitle, sorted(selectsite, key=lambda s: s.score, reverse=True)[:5]
+    return wikiTitle, sorted(selectsite, key=lambda s: s.score, reverse=True)[: 5], RelatedWords
 
 
 if __name__ == "__main__":
@@ -180,8 +197,8 @@ if __name__ == "__main__":
     _sitepath = _PATH+"sites/"
     if not os.path.isdir(_sitepath):
         os.mkdir(_sitepath)
-    sitefile = open(_PATH+"sites/"+search_name+".txt", "w", encoding="uft-8")
-    title, sitelist = selectalgo(search_name, _PATH)
+    sitefile = open(_PATH+"sites/"+search_name+".txt", "w", encoding="utf-8")
+    title, sitelist, rr = selectalgo(search_name, _PATH)
     if title != "noarticletext":
         for site in sitelist:
             site.display()

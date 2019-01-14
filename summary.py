@@ -8,6 +8,7 @@ Created on Sun May 13 14:53:50 2018
 """
 
 import copy
+import gc
 import os
 import time
 
@@ -24,7 +25,16 @@ import savetext
 import selectionalgo
 
 _PATH = os.path.dirname(os.path.abspath(__file__))+"/"
-htmldir, savedir, tempdir, sentences, indexsentences = "", "", "", [], []
+htmldir, savedir, tempdir, refdir, sentences, indexsentences = "", "", "", "", [], []
+xlist = ["。", "？", "！", "～", "?", "!", " ", "　", "」", "』", "”",
+         "(", "（", "》", "〉", ")", "）", "，", "：", "」", "、", "《",
+         "；", "「", "%"]
+dic = {}
+with open(_PATH+"source/1998.csv", "r", encoding="utf-8") as dictxt:
+    lines = dictxt.read().splitlines()
+    for line in lines:
+        line = line.split(",")
+        dic[line[1]] = float(line[3])
 
 
 class Sentence(object):
@@ -53,16 +63,24 @@ def dircheck(path, tstamp):
 
 
 def getwebdata(search_name, timestamp=""):
+    global savedir, htmldir, tempdir, refdir
     t0 = time.time()
-    title, sitelist = selectionalgo.selectalgo(search_name, _PATH)
+    opcc = OpenCC("s2twp")
+    title, sitelist, RelatedWord = selectionalgo.selectalgo(search_name, _PATH)
+    title = opcc.convert(title)
     if title != "noarticletext":
         print("search time", time.time()-t0)
+        savedir = dircheck(_PATH+"savetext/{}/".format(title), tstamp="")
+        htmldir = dircheck(_PATH+"html/{}/".format(title), tstamp="")
+        tempdir = dircheck(_PATH+"temp/{}/".format(title), tstamp="")
+        refdir = dircheck(_PATH+"reference/", tstamp="")
         for file in os.listdir(savedir):
-            if file[0] != ".":
-                os.rename(savedir+file, tempdir+file[0:-4]+timestamp+".txt")
+            print(savedir+file, tempdir+file[0:-4]+timestamp+".txt")
+            os.rename(savedir+file, tempdir+file[0:-4]+"_"+timestamp+".txt")
         for file in os.listdir(htmldir):
-            if file[0] != ".":
-                os.rename(htmldir+file, tempdir+file[0:-4]+timestamp+".txt")
+            os.rename(htmldir+file, tempdir+file[0:-4]+"_"+timestamp+".txt")
+        reffp = open(refdir+"{}_reference.txt".format(title),
+                     "w", encoding="utf-8")
         for site in sitelist:
             site.display()
             with open(htmldir+site.webname+".html", "w", encoding="utf-8") as fp:
@@ -70,7 +88,10 @@ def getwebdata(search_name, timestamp=""):
             sitetext = savetext.savetext(site.soup)
             with open(savedir+"{}_{}.txt".format(site.webname, site.score), "w", encoding="utf-8") as outfp:
                 outfp.writelines(sitetext)
-    return title
+            reffp.write(opcc.convert(site.name)+"\n"+site.link+"\n")
+        reffp.close()
+        del sitelist
+    return title, RelatedWord
 
 
 def is_alphabet(uchar):
@@ -88,7 +109,7 @@ def loadtext(textdir, mixedversion=True, textrankrate=0.5):
     # print(filelist)
     tr4s = TextRank4Sentence()
     for file in sorted(filelist, key=lambda file: float(file.split("_")[1][:-4]), reverse=True):
-        print(file)
+        # print(file)
         with open(savedir+file, "r", encoding="utf-8") as txtfile:
             eofp = open(tempdir+file, "w", encoding="utf-8")
             contents = txtfile.read()
@@ -133,16 +154,7 @@ def loadtext(textdir, mixedversion=True, textrankrate=0.5):
             eofp.close()
             docs.append(paragraph)
     print("txt loding completed", time.time()-t0)
-    xlist = ["。", "？", "！", "～", "?", "!", " ", "　", "」", "』", "”",
-             "(", "（", "》", "〉", ")", "）", "，", "：", "」", "、", "《",
-             "；", "「", "%"]
     t0 = time.time()
-    dic = {}
-    with open(_PATH+"source/1998.csv", "r", encoding="utf-8") as dictxt:
-        lines = dictxt.read().splitlines()
-        for line in lines:
-            line = line.split(",")
-            dic[line[1]] = float(line[3])
     sentences = []
     indexsentences = []
     opcc = OpenCC('s2twp')
@@ -177,6 +189,7 @@ def loadtext(textdir, mixedversion=True, textrankrate=0.5):
                         Sentence(sen, sentence, d, p, sid, score))
     print("segmentation completed", time.time()-t0)
     print("total sentences:", len(sentences))
+    del docs, filelist
 #    print(sentences)
     # for s in indexsentences:
     #     print(s)
@@ -202,9 +215,10 @@ def drawW2Vtrainningresult(model, w2vtotaltraintime, w2vdir, timestamp):
         ymax = max(ymax, v[1])
         ymin = min(ymin, v[1])
         ax.text(v[0], v[1], word, fontproperties=zhfont)
-    print(xmax, xmin, ymax, ymin)
+    # print(xmax, xmin, ymax, ymin)
     ax.axis([xmin, xmax*1.05, ymin, ymax*1.05])
     plt.savefig(w2vdir+"W2V2D_{}_{}.png".format(w2vtotaltraintime, timestamp))
+    plt.close(fig)
 #    plt.show()
 
 
@@ -213,14 +227,14 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
     w2vdir = _PATH+"word2vec/{}/".format(save_name)
     if not os.path.isdir(w2vdir):
         os.mkdir(w2vdir)
-        trainning = True
+        # trainning = True
     w2vtotaltraintime, w2vdimsize = 200000, 100
     t0 = time.time()
     if trainning:
         print("begin word2vector trainning")
         model = Word2Vec(sentences, size=w2vdimsize, min_count=1,
                          workers=2, iter=w2vtotaltraintime)
-        model.save(w2vdir+"word2vec_{}.model".format(w2vtotaltraintime))
+        # model.save(w2vdir+"word2vec_{}.model".format(w2vtotaltraintime))
         print("w2v trainning {} completed".format(
             w2vtotaltraintime), time.time()-t0)
         # -----------draw train result-----
@@ -252,6 +266,7 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
     groupdir = dircheck(tempdir+"group/", tstamp="")
     # print(adjlist)
     clustersize = int(len(sentences)*0.45)
+    # opcck2s = OpenCC('hk2s')
     opcc = OpenCC('s2twp')
     t00 = time.time()
 
@@ -283,8 +298,9 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
                 break
     #    print("change weighttime", time.time()-t0, end=" ")
     #    t0 = time.time()
-        if gl == clustersize or (gl < len(sentences)//2 and (gl-clustersize) % 10 == 0):
-            print(gl)
+        # or (gl < len(sentences)//2 and (gl-clustersize) % 10 == 0):
+        if gl == clustersize or gl == 1:
+            print("clustersize is ", gl)
             cslist = []
             for i, g in enumerate(clusters):
                 with open(groupdir+"{}g{:02d}.txt".format(gl, i), "w", encoding="utf-8") as gfp:
@@ -312,12 +328,12 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
             cslist = sorted(cslist, key=lambda s: s.score, reverse=True)[:20]
             for cs in cslist:
                 if cs.score < 0.0075:
-                    print(cs)
+                    # print(cs)
                     cslist.remove(cs)
             with open(csdir+"{}sc.txt".format(gl), "w", encoding="utf-8") as csfp:
                 for s in sorted(cslist, key=lambda s: (s.doc, s.para, s.lineindex)):
                     csfp.write(opcc.convert(s.sentence)+"\n")
-            if gl == clustersize:
+            if gl == clustersize or gl == 1:
                 with open(_PATH+"summary/"+save_name+"_summary"+summarytype+timestamp+".txt", "w", encoding="utf-8") as csfp:
                     for s in sorted(cslist, key=lambda s: (s.doc, s.para, s.lineindex)):
                         csfp.write(opcc.convert(s.sentence)+"\n")
@@ -328,14 +344,12 @@ def clustering(save_name, summarytype, trainning=False, timestamp=""):
         # print(groupadj)
     # clusters.display()
     print("clustering completed", time.time()-t00)
+    del index2word_set, adjlist, groupadj, clusters
 
 
 def getsummary(search_name="人工智慧", getweb=True, mixver=False, trrate=0.7, istrainning=True):
-    global savedir, htmldir, tempdir, sentences, indexsentences
+    global sentences, indexsentences
     tstamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
-    savedir = dircheck(_PATH+"savetext/{}/".format(search_name), tstamp="")
-    htmldir = dircheck(_PATH+"html/{}/".format(search_name), tstamp="")
-    tempdir = dircheck(_PATH+"temp/{}/".format(search_name), tstamp="")
     print("開始搜尋："+search_name)
     stype = ""
     if mixver:
@@ -349,30 +363,30 @@ def getsummary(search_name="人工智慧", getweb=True, mixver=False, trrate=0.7
         print("no trainning")
     # ----------getwebdata-----------
     if getweb:
-        wikiresult = getwebdata(search_name, timestamp=tstamp)
+        wikiresult, RelatedWord = getwebdata(search_name, timestamp=tstamp)
     else:
-        wikiresult = ""
+        wikiresult, stype, tstamp = "", "", ""
     if wikiresult != "noarticletext":
         # ----cut sentence and word------
         sentences, indexsentences = loadtext(
             savedir, mixedversion=mixver, textrankrate=trrate)
         # -------------clustering--------
-        stype, tstamp = "", ""
-        clustering(save_name=wikiresult, summarytype=stype,
-                   trainning=istrainning, timestamp=tstamp)
-    return wikiresult
+        clustering(save_name=wikiresult, summarytype="",
+                   trainning=istrainning, timestamp="")
+        del indexsentences, sentences
+    gc.collect()
+    return wikiresult, RelatedWord
 
 
 if __name__ == "__main__":
+    #    jieba.set_dictionary(_PATH+"text segmentation/dict.txt.big")
+    mixver, trrate, istrainning, getweb = False, 0.7, False, False
     search_name = input("輸入搜尋項目名稱(人工智慧):")
+    webinput = input("getwebdata?(y/N)")
+    if search_name != "" or str.lower(webinput) == "y":
+        getweb = True
     if search_name == "":
         search_name = "人工智慧"
-
-#    jieba.set_dictionary(_PATH+"text segmentation/dict.txt.big")
-    mixver, trrate, istrainning, getweb = False, 0.7, False, False
-    webinput = input("getwebdata?(y/N)")
-    if str.lower(webinput) == "y":
-        getweb = True
     mixverinput = input("ismix?(y/N)")
     if str.lower(mixverinput) == "y":
         mixver = True

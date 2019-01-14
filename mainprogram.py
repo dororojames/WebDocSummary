@@ -7,19 +7,23 @@ Created on Sun May 13 14:53:50 2018
 @author: dororo
 """
 
+import os
+import shutil
 import time
 
 import pymysql
 
 import summary
 
-delaytime = 300
+delaytime = 84600
+_PATH = os.path.dirname(os.path.abspath(__file__))+"/"
+# 1997-08-23_00-00-00 = 872265600
 
 
 class QueryQueue(object):
     def __init__(self):
         self.namelist = []
-        for result in query(sql="select * from query"):
+        for result in query(sql="select * from `query` where `issearch`=1 order by `file`, `date`"):
             # print(result)
             if time.mktime(time.strptime(result[1], '%Y-%m-%d_%H-%M-%S'))+delaytime < time.time():
                 self.namelist.append(result[0])
@@ -32,17 +36,37 @@ class QueryQueue(object):
             string += n
         return string+"]"
 
-    def push(self, name, timestamp, file=""):
-        if name in self.namelist:
+    def insert(self, name, timestamp="1997-08-23_00-00-00", file="", issearch=0):
+        try:
+            query(sql="insert into `query` values ('{}', '{}', '{}', {})".format(
+                name, timestamp, file, issearch))
+        except:
             return
-        self.namelist.append(name)
-        for r in query(sql="select * from query where file='{}'".format(file)):
+
+    def update(self, name, timestamp, file=""):
+        for r in query(sql="select * from `query` where `file`='{}'".format(file)):
             # print(r)
-            query(sql="update `query` set date='{}' where file='{}'".format(
+            query(sql="update `query` set `date`='{}' where `file`='{}'".format(
                 timestamp, r[0]))
         else:
-            query(sql="update `query` set date='{}',file='{}' where title='{}'".format(
+            query(sql="update `query` set `date`='{}', `file`='{}' where `title`='{}'".format(
                 timestamp, file, name))
+        r = query(
+            sql="select `issearch` from `query` where `title`='{}'".format(name))
+        if r[0][0] == 1:
+            self.namelist.append(name)
+
+    def push(self, name, timestamp="1997-08-23_00-00-00", file="", issearch=0):
+        if name not in self.namelist:
+            self.insert(name=name, timestamp=timestamp,
+                        file=file, issearch=issearch)
+            self.namelist.append(name)
+
+    def addword(self):
+        for r in query(sql="select `title` from `query` where `issearch`=1 order by `date`")[:10]:
+            if r[0] in self.namelist:
+                self.namelist.remove(r[0])
+            self.namelist.insert(0, r[0])
 
     def empty(self):
         if self.namelist:
@@ -55,16 +79,19 @@ class QueryQueue(object):
         return_index = -1
         for i in range(len(self.namelist)):
             result = query(
-                sql="select date from `query` where title='{}'".format(self.namelist[i]))
-            if time.mktime(time.strptime(result[0][0], '%Y-%m-%d_%H-%M-%S'))+delaytime < time.time():
+                sql="select `date`, `issearch` from `query` where title='{}'".format(self.namelist[i]))
+            if time.mktime(time.strptime(result[0][0], '%Y-%m-%d_%H-%M-%S'))+delaytime < time.time() or result[0][1] == 0:
                 return_index = i
                 break
         else:
             print("no title need to search.")
             return None
-        n = self.namelist[return_index]
+        name = self.namelist[return_index]
         self.namelist.pop(return_index)
-        return n
+        return name
+
+    def __len__(self):
+        return len(self.namelist)
 
 
 def query(sql=""):
@@ -97,28 +124,49 @@ def requery():
     print("Wait 5min to requery. Now is ", time.strftime(
         "%Y-%m-%d_%H-%M-%S", time.localtime()))
     time.sleep(delaytime)
-    return QueryQueue()
+
+
+def dumpdir(path):
+    try:
+        shutil.rmtree(path)
+    except:
+        pass
+    os.mkdir(path)
 
 
 if __name__ == "__main__":
+    # dumpdir(_PATH+"savetext/")
+    # dumpdir(_PATH+"html/")
+    # dumpdir(_PATH+"temp/")
+    # dumpdir(_PATH+"reference/")
+    # dumpdir(_PATH+"summary/")
+    # dumpdir(_PATH+"word2vec/")
+
     # 打开数据库连接
-    db = pymysql.connect("localhost", "root", "root", "summary")
+    db = pymysql.connect("localhost", "dororo", "dororo914", "summary")
 
     qq = QueryQueue()
-    qq.push("人工智慧", time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime()))
+    qq.push("人工智慧", issearch=1)
+
     while True:
         if not qq.empty():
             print(qq)
             sname = qq.pop()
             if sname == None:
-                qq = requery()
+                for r in query(sql="select `title` from `query` where `issearch`=0 order by `date`")[:20]:
+                    qq.push(r[0])
             else:
-                filename = summary.getsummary(
-                    search_name=sname, istrainning=False)
-                qq.push(sname, time.strftime("%Y-%m-%d_%H-%M-%S",
-                                             time.localtime()), file=filename)
+                filename, RelatedWord = summary.getsummary(
+                    search_name=sname, istrainning=True)
+                tstamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+                qq.update(sname, tstamp, file=filename)
+                for r in RelatedWord:
+                    qq.insert(r, tstamp)
+            qq.addword()
         else:
             print("queue empty.")
+            # requery()
+            # qq = QueryQueue()
             break
 
     # 关闭数据库连接
