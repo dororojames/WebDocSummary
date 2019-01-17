@@ -36,7 +36,7 @@ class QueryQueue(object):
             string += n
         return string+"]"
 
-    def insert(self, name, timestamp="1997-08-23_00-00-00", file="", issearch=0):
+    def insert(self, name, timestamp, file="", issearch=0):
         try:
             query(sql="insert into `query` values ('{}', '{}', '{}', {})".format(
                 name, timestamp, file, issearch))
@@ -56,7 +56,7 @@ class QueryQueue(object):
         if r[0][0] == 1:
             self.namelist.append(name)
 
-    def push(self, name, timestamp="1997-08-23_00-00-00", file="", issearch=0):
+    def push(self, name, timestamp, file="", issearch=0):
         if name not in self.namelist:
             self.insert(name=name, timestamp=timestamp,
                         file=file, issearch=issearch)

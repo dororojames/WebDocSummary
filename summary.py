@@ -67,7 +67,6 @@ def getwebdata(search_name, timestamp=""):
     t0 = time.time()
     opcc = OpenCC("s2twp")
     title, sitelist, RelatedWord = selectionalgo.selectalgo(search_name, _PATH)
-    title = opcc.convert(title)
     if title != "noarticletext":
         print("search time", time.time()-t0)
         savedir = dircheck(_PATH+"savetext/{}/".format(title), tstamp="")
@@ -107,6 +106,8 @@ def loadtext(textdir, mixedversion=True, textrankrate=0.5):
         if not is_alphabet(f[0]):
             filelist.remove(f)
     # print(filelist)
+    if not filelist:
+        return None, None
     tr4s = TextRank4Sentence()
     for file in sorted(filelist, key=lambda file: float(file.split("_")[1][:-4]), reverse=True):
         # print(file)
@@ -370,6 +371,8 @@ def getsummary(search_name="人工智慧", getweb=True, mixver=False, trrate=0.7
         # ----cut sentence and word------
         sentences, indexsentences = loadtext(
             savedir, mixedversion=mixver, textrankrate=trrate)
+        if sentences == None:
+            return "nodata", RelatedWord
         # -------------clustering--------
         clustering(save_name=wikiresult, summarytype="",
                    trainning=istrainning, timestamp="")

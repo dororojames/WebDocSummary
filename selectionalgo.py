@@ -29,7 +29,8 @@ banword = ["ppt", "slide", "pdf", "news", "tv", "facebook.com", "平台", "平�
            "www.104.com", "udn.com", "KKTIX", "pcschool.com", "eslite.com",
            "piconion.com", "math.scu", "asia-analytics.com", "pu.edu", "nkfust.edu",
            "geog.ntu.edu", "yourgene.pixnet", "canon-asia.com", "raspberrypi.com",
-           "inside.com", "myweb.fcu", "iiiedu.org"]
+           "inside.com", "myweb.fcu", "iiiedu.org", "law.moj.gov.tw",
+           ""]
 header = {
     "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.13 (KHTML, like Gecko) Chrome/0.2.149.27 Safari/525.13"}
 
@@ -85,7 +86,8 @@ def selectalgo(search_name, _PATH):
     link = "https://zh.wikipedia.org/wiki/"+search_name
     site = requests.get(link)
     text = BeautifulSoup(site.content, "html.parser")
-    wikiTitle = text.find(id="firstHeading").getText()
+    opcc = OpenCC("s2twp")
+    wikiTitle = opcc.convert(text.find(id="firstHeading").getText())
     text = text.find(id="mw-content-text").extract()
     for deco in decolist:
         for s in text.find_all(class_=deco):
@@ -101,21 +103,21 @@ def selectalgo(search_name, _PATH):
     taglist = Taglist()
     RelatedWords = []
     # tfidffile = open(_PATH+search_name+"textsegmentation.txt", "w")
-    opcc = OpenCC('s2twp')
     for r in jieba.analyse.textrank(text, topK=10, withWeight=False, allowPOS=(["l", "n"])):
         rr = opcc.convert(r)
-        if rr != search_name:
+        if rr != search_name and rr != wikiTitle:
             RelatedWords.append(rr)
     print("RelatedWord:", RelatedWords)
     for tag, wei in tags:
-        if opcc.convert(tag) in bantag or opcc.convert(tag) in search_name:
+        t = opcc.convert(tag)
+        if t in bantag or t in search_name or t in wikiTitle:
             # tags.remove((tag, wei))
             continue
         # print(tag, wei)
         taglist.append(Tag(tag, wei))
         # tfidffile.write("{} {}\n".format(tag, wei))
     # tfidffile.close()
-    search_results = google.search(search_name)
+    search_results = google.search(wikiTitle)
     # banword = []
     selectsite = []
     opcc = OpenCC('tw2sp')
